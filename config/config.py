@@ -62,9 +62,9 @@ class Config:
 
         # Data specification
         self.dataset = args.dataset
-        self.train_file = "data/" + self.dataset + "/train.txt"
-        self.dev_file = "data/" + self.dataset + "/dev.txt"
-        self.test_file = "data/" + self.dataset + "/test.txt"
+        self.train_file = "data/" + self.dataset + "/train.sd.conllx"
+        self.dev_file = "data/" + self.dataset + "/dev.sd.conllx"
+        self.test_file = "data/" + self.dataset + "/test.sd.conllx"
         self.label2idx = {}
         self.idx2labels = []
         self.char2idx = {}
@@ -86,6 +86,11 @@ class Config:
         self.clip = 5
         self.lr_decay = args.lr_decay
         self.device = torch.device(args.device)
+
+        # new model hyperparameter
+        self.extraction = args.extraction if "extraction" in args.__dict__ else 0
+        self.target_type = args.target_type if "target_type" in args.__dict__ else None
+        self.dict_ratio = args.dict_ratio if "dict_ratio" in args.__dict__ else 1.0
 
     def read_pretrain_embedding(self) -> Tuple[Union[Dict[str, np.array], None], int]:
         """
@@ -122,7 +127,7 @@ class Config:
                 embedding[first_col] = embedd
         return embedding, embedding_dim
 
-    def build_word_idx(self, train_insts: List[Instance], dev_insts: List[Instance], test_insts: List[Instance]) -> None:
+    def build_word_idx(self, insts: List[Instance]) -> None:
         """
         Build the vocab 2 idx for all instances
         :param train_insts:
@@ -144,13 +149,13 @@ class Config:
         self.idx2char.append(self.UNK)
 
         # extract char on train, dev, test
-        for inst in train_insts + dev_insts + test_insts:
+        for inst in insts:
             for word in inst.input.words:
                 if word not in self.word2idx:
                     self.word2idx[word] = len(self.word2idx)
                     self.idx2word.append(word)
         # extract char only on train (doesn't matter for dev and test)
-        for inst in train_insts:
+        for inst in insts:
             for word in inst.input.words:
                 for c in word:
                     if c not in self.char2idx:

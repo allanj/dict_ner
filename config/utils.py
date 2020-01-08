@@ -34,6 +34,7 @@ def batching_list_instances(config: Config, insts: List[Instance]):
 
     return batched_data
 
+
 def simple_batching(config, insts: List[Instance]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor,torch.Tensor,torch.Tensor,torch.Tensor]:
 
     """
@@ -147,3 +148,28 @@ def write_results(filename: str, insts):
             f.write("{}\t{}\t{}\t{}\n".format(i, words[i], output[i], prediction[i]))
         f.write("\n")
     f.close()
+
+
+def use_iobes(insts: List[Instance]) -> None:
+    """
+    Use IOBES tagging schema to replace the IOB tagging schema in the instance
+    :param insts:
+    :return:
+    """
+    for inst in insts:
+        output = inst.output
+        for pos in range(len(inst)):
+            curr_entity = output[pos]
+            if pos == len(inst) - 1:
+                if curr_entity.startswith("B-"):
+                    output[pos] = curr_entity.replace("B-", "S-")
+                elif curr_entity.startswith("I-"):
+                    output[pos] = curr_entity.replace("I-", "E-")
+            else:
+                next_entity = output[pos + 1]
+                if curr_entity.startswith("B-"):
+                    if next_entity.startswith("O") or next_entity.startswith("B-"):
+                        output[pos] = curr_entity.replace("B-", "S-")
+                elif curr_entity.startswith("I-"):
+                    if next_entity.startswith("O") or next_entity.startswith("B-"):
+                        output[pos] = curr_entity.replace("I-", "E-")
