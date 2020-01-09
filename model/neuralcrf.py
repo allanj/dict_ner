@@ -20,7 +20,7 @@ class NNCRF(nn.Module):
     def __init__(self, config, print_info: bool = True):
         super(NNCRF, self).__init__()
         self.device = config.device
-        self.encoder = BiLSTMEncoder(config, print_info=print_info)
+        self.encoder:BiLSTMEncoder = BiLSTMEncoder(config, print_info=print_info)
         self.inferencer = LinearCRF(config, print_info=print_info)
 
     @overrides
@@ -29,7 +29,8 @@ class NNCRF(nn.Module):
                     batch_context_emb: torch.Tensor,
                     chars: torch.Tensor,
                     char_seq_lens: torch.Tensor,
-                    tags: torch.Tensor) -> torch.Tensor:
+                    tags: torch.Tensor,
+                    forward_type: str= "complete") -> torch.Tensor:
         """
         Calculate the negative loglikelihood.
         :param words: (batch_size x max_seq_len)
@@ -40,7 +41,7 @@ class NNCRF(nn.Module):
         :param tags: (batch_size x max_seq_len)
         :return: the loss with shape (batch_size)
         """
-        lstm_scores = self.encoder(words, word_seq_lens, batch_context_emb, chars, char_seq_lens)
+        lstm_scores = self.encoder(words, word_seq_lens, batch_context_emb, chars, char_seq_lens, forward_type=forward_type)
         batch_size = words.size(0)
         sent_len = words.size(1)
         maskTemp = torch.arange(1, sent_len + 1, dtype=torch.long).view(1, sent_len).expand(batch_size, sent_len).to(self.device)

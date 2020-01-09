@@ -66,7 +66,7 @@ def parse_arguments(parser):
 
 
 def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_insts: List[Instance], test_insts: List[Instance], unlabeled_insts: List[Instance] = None):
-    model = NNCRF(config)
+    model:NNCRF = NNCRF(config)
     optimizer = get_optimizer(config, model)
     train_num = len(train_insts)
     print("number of instances: %d" % (train_num))
@@ -105,13 +105,13 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
             optimizer = lr_decay(config, optimizer, i)
 
         labeled_data_batch_idxs = np.random.permutation(len(batched_data))
-        unlabeled_data_batch_idxs = np.random.permutation(len(batched_unlabeled))
+        unlabeled_data_batch_idxs = np.random.permutation(len(batched_unlabeled)) if unlabeled_insts else []
         final_idxs = []
         k = 0
         j = 0
         while len(final_idxs) < len(labeled_data_batch_idxs) + len(unlabeled_data_batch_idxs):
             if k < len(labeled_data_batch_idxs):
-                final_idxs.append((1, labeled_data_batch_idxs[i]))
+                final_idxs.append((1, labeled_data_batch_idxs[k]))
             if j < len(unlabeled_data_batch_idxs):
                 final_idxs.append((0, unlabeled_data_batch_idxs[j]))
             k+=1
@@ -125,14 +125,18 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
                 batch_size = words.size(0)
                 for batch_idx in range(batch_size):
                     batch_max_ids[batch_idx, :word_len[batch_idx]] = batch_max_ids[batch_idx, :word_len[batch_idx]].flip(0)
-                ## replace the output with the predicted index
-                loss = model(words, word_len, context_emb, char_seq, char_seq_len, batch_max_ids)
+                for type in ["forward", "backward"]:
+                    loss = model(words, word_len, context_emb, char_seq, char_seq_len, batch_max_ids, forward_type = type)
+                    epoch_loss += loss.item()
+                    loss.backward()
+                    optimizer.step()
+                    model.zero_grad()
             else:
                 loss = model(*batched_data[index])
-            epoch_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-            model.zero_grad()
+                epoch_loss += loss.item()
+                loss.backward()
+                optimizer.step()
+                model.zero_grad()
 
         end_time = time.time()
         print("Epoch %d: %.5f, Time is %.2fs" % (i, epoch_loss, end_time - start_time), flush=True)

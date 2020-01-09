@@ -34,7 +34,7 @@ class BiLSTMEncoder(nn.Module):
         if print_info:
             print("[Model Info] Input size to LSTM: {}".format(self.input_size))
             print("[Model Info] LSTM Hidden Size: {}".format(config.hidden_dim))
-
+        self.hidden_dim = config.hidden_dim // 2
         self.lstm = nn.LSTM(self.input_size, config.hidden_dim // 2, num_layers=1, batch_first=True, bidirectional=True).to(self.device)
 
         self.drop_lstm = nn.Dropout(config.dropout).to(self.device)
@@ -46,12 +46,19 @@ class BiLSTMEncoder(nn.Module):
 
         self.hidden2tag = nn.Linear(final_hidden_dim, self.label_size).to(self.device)
 
+        if config.extraction:
+            self.fwd2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
+            self.bwd2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
+            # self.future2tag = nn.Linear(self.hidden_dim // 2, self.label_size).to(self.device)
+            # self.pas2tag = nn.Linear(self.hidden_dim // 2, self.label_size).to(self.device)
+
     @overrides
     def forward(self, word_seq_tensor: torch.Tensor,
                        word_seq_lens: torch.Tensor,
                        batch_context_emb: torch.Tensor,
                        char_inputs: torch.Tensor,
-                       char_seq_lens: torch.Tensor) -> torch.Tensor:
+                       char_seq_lens: torch.Tensor,
+                    forward_type: str = "complete") -> torch.Tensor:
         """
         Encoding the input with BiLSTM
         :param word_seq_tensor: (batch_size, sent_len)   NOTE: The word seq actually is already ordered before come here.
@@ -79,9 +86,16 @@ class BiLSTMEncoder(nn.Module):
         packed_words = pack_padded_sequence(sorted_seq_tensor, sorted_seq_len, True)
         lstm_out, _ = self.lstm(packed_words, None)
         lstm_out, _ = pad_packed_sequence(lstm_out, batch_first=True)  ## CARE: make sure here is batch_first, otherwise need to transpose.
-        feature_out = self.drop_lstm(lstm_out)
 
-        outputs = self.hidden2tag(feature_out)
+        if forward_type == "complete":
+            feature_out = self.drop_lstm(lstm_out)
+            outputs = self.hidden2tag(feature_out)
+        elif forward_type == "forward":
+            feature_out = lstm_out[:, :, :self.hidden_dim]
+            outputs = self.fwd2tag(feature_out)
+        elif forward_type == "backward":
+            feature_out = lstm_out[:, :, self.hidden_dim:]
+            outputs = self.bwd2tag(feature_out)
 
         return outputs[recover_idx]
 
