@@ -49,8 +49,8 @@ class BiLSTMEncoder(nn.Module):
         if config.extraction:
             self.fwd2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
             self.bwd2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
-            # self.future2tag = nn.Linear(self.hidden_dim // 2, self.label_size).to(self.device)
-            # self.pas2tag = nn.Linear(self.hidden_dim // 2, self.label_size).to(self.device)
+            self.future2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
+            self.past2tag = nn.Linear(self.hidden_dim, self.label_size).to(self.device)
 
     @overrides
     def forward(self, word_seq_tensor: torch.Tensor,
@@ -96,6 +96,14 @@ class BiLSTMEncoder(nn.Module):
         elif forward_type == "backward":
             feature_out = lstm_out[:, :, self.hidden_dim:]
             outputs = self.bwd2tag(feature_out)
+        elif forward_type == "future":
+            feature_out = lstm_out[:, :, :self.hidden_dim]
+            feature_out = torch.cat([feature_out[:, -1:, :], feature_out[:, :-1, :]], dim= 1)
+            outputs = self.future2tag(feature_out)
+        elif forward_type == "past":
+            feature_out = lstm_out[:, :, self.hidden_dim:]
+            feature_out = torch.cat([feature_out[:, 1:, :], feature_out[:, :1, :]], dim=1)
+            outputs = self.past2tag(feature_out)
 
         return outputs[recover_idx]
 

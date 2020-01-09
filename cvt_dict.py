@@ -9,9 +9,10 @@ from typing import List
 from common import Instance
 from termcolor import colored
 import os
-from config.utils import load_elmo_vec
+from config.utils import load_elmo_vec, get_metric
 from data_utils import extract_dictionary, convert_dictionary_into_instances
 import pickle
+from collections import Counter, defaultdict
 import tarfile
 
 def set_seed(opt, seed):
@@ -125,7 +126,7 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
                 batch_size = words.size(0)
                 for batch_idx in range(batch_size):
                     batch_max_ids[batch_idx, :word_len[batch_idx]] = batch_max_ids[batch_idx, :word_len[batch_idx]].flip(0)
-                for type in ["forward", "backward"]:
+                for type in ["forward", "backward", "future", "past"]:
                     loss = model(words, word_len, context_emb, char_seq, char_seq_len, batch_max_ids, forward_type = type)
                     epoch_loss += loss.item()
                     loss.backward()
@@ -158,11 +159,10 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
             write_results(res_name, test_insts)
         model.zero_grad()
 
-    print("Archiving the best Model...")
-    with tarfile.open(model_folder + "/" + model_folder + ".tar.gz", "w:gz") as tar:
-        tar.add(model_folder, arcname=os.path.basename(model_folder))
-
-    print("Finished archiving the models")
+    # print("Archiving the best Model...")
+    # with tarfile.open(f"model_files/{model_folder}/{model_folder}.tar.gz", "w:gz") as tar:
+    #     tar.add(model_folder, arcname=os.path.basename(model_folder))
+    # print("Finished archiving the models")
 
     print("The best dev: %.2f" % (best_dev[0]))
     print("The corresponding test: %.2f" % (best_test[0]))
@@ -175,19 +175,27 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
 
 def evaluate_model(config: Config, model: NNCRF, batch_insts_ids, name: str, insts: List[Instance]):
     ## evaluation
-    metrics = np.asarray([0, 0, 0], dtype=int)
+    p_dict, total_predict_dict, total_entity_dict = Counter(), Counter(), Counter()
     batch_id = 0
     batch_size = config.batch_size
     for batch in batch_insts_ids:
         one_batch_insts = insts[batch_id * batch_size:(batch_id + 1) * batch_size]
         batch_max_scores, batch_max_ids = model.decode(batch)
-        metrics += evaluate_batch_insts(one_batch_insts, batch_max_ids, batch[-1], batch[1], config.idx2labels)
+        batch_p , batch_predict, batch_total = evaluate_batch_insts(one_batch_insts, batch_max_ids, batch[-1], batch[1], config.idx2labels)
+        p_dict += batch_p
+        total_predict_dict += batch_predict
+        total_entity_dict += batch_total
         batch_id += 1
-    p, total_predict, total_entity = metrics[0], metrics[1], metrics[2]
-    precision = p * 1.0 / total_predict * 100 if total_predict != 0 else 0
-    recall = p * 1.0 / total_entity * 100 if total_entity != 0 else 0
-    fscore = 2.0 * precision * recall / (precision + recall) if precision != 0 or recall != 0 else 0
-    print("[%s set] Precision: %.2f, Recall: %.2f, F1: %.2f" % (name, precision, recall, fscore), flush=True)
+
+    for key in sorted(total_entity_dict.keys()):
+        precision_key, recall_key, fscore_key = get_metric(p_dict[key], total_entity_dict[key], total_predict_dict[key])
+        print(f"[{key}] Prec.: {precision_key:.2f}, Rec.: {recall_key:.2f}, F1: {fscore_key:.2f}")
+
+    total_p = sum(list(p_dict.values()))
+    total_predict = sum(list(total_predict_dict.values()))
+    total_entity = sum(list(total_entity_dict.values()))
+    precision, recall, fscore = get_metric(total_p, total_entity, total_predict)
+    print(f"[Total] Prec.: {precision:.2f}, Rec.: {recall:.2f}, F1: {fscore:.2f}")
     return [precision, recall, fscore]
 
 

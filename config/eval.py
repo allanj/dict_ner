@@ -1,10 +1,10 @@
 
 import numpy as np
 from overrides import overrides
-from typing import List
+from typing import List, Tuple
 from common import Instance
 import torch
-
+from collections import defaultdict, Counter
 
 class Span:
     """
@@ -33,7 +33,7 @@ def evaluate_batch_insts(batch_insts: List[Instance],
                          batch_pred_ids: torch.LongTensor,
                          batch_gold_ids: torch.LongTensor,
                          word_seq_lens: torch.LongTensor,
-                         idx2label: List[str]) -> np.ndarray:
+                         idx2label: List[str]) -> Tuple[Counter, Counter, Counter]:
     """
     Evaluate a batch of instances and handling the padding positions.
     :param batch_insts:  a batched of instances.
@@ -44,9 +44,9 @@ def evaluate_batch_insts(batch_insts: List[Instance],
     :return: numpy array containing (number of true positive, number of all positive, number of true positive + number of false negative)
              You can also refer as (number of correctly predicted entities, number of entities predicted, number of entities in the dataset)
     """
-    p = 0
-    total_entity = 0
-    total_predict = 0
+    p = defaultdict(int)
+    total_entity = defaultdict(int)
+    total_predict = defaultdict(int)
     word_seq_lens = word_seq_lens.tolist()
     for idx in range(len(batch_pred_ids)):
         length = word_seq_lens[idx]
@@ -65,8 +65,11 @@ def evaluate_batch_insts(batch_insts: List[Instance],
             if output[i].startswith("E-"):
                 end = i
                 output_spans.add(Span(start, end, output[i][2:]))
+                total_entity[output[i][2:]] += 1
             if output[i].startswith("S-"):
                 output_spans.add(Span(i, i, output[i][2:]))
+                total_entity[output[i][2:]] += 1
+        start = -1
         predict_spans = set()
         for i in range(len(prediction)):
             if prediction[i].startswith("B-"):
@@ -74,12 +77,17 @@ def evaluate_batch_insts(batch_insts: List[Instance],
             if prediction[i].startswith("E-"):
                 end = i
                 predict_spans.add(Span(start, end, prediction[i][2:]))
+                total_predict[prediction[i][2:]] += 1
             if prediction[i].startswith("S-"):
                 predict_spans.add(Span(i, i, prediction[i][2:]))
+                total_predict[prediction[i][2:]] += 1
 
-        total_entity += len(output_spans)
-        total_predict += len(predict_spans)
-        p += len(predict_spans.intersection(output_spans))
+        # total_entity += len(output_spans)
+        # total_predict += len(predict_spans)
+        correct_spans = predict_spans.intersection(output_spans)
+        for span in correct_spans:
+            p[span.type] += 1
+        # p += len(predict_spans.intersection(output_spans))
 
     # In case you need the following code for calculating the p/r/f in a batch.
     # (When your batch is the complete dataset)
@@ -87,4 +95,5 @@ def evaluate_batch_insts(batch_insts: List[Instance],
     # recall = p * 1.0 / total_entity * 100 if total_entity != 0 else 0
     # fscore = 2.0 * precision * recall / (precision + recall) if precision != 0 or recall != 0 else 0
 
-    return np.asarray([p, total_predict, total_entity], dtype=int)
+    # return np.asarray([p, total_predict, total_entity], dtype=int)
+    return Counter(p), Counter(total_predict), Counter(total_entity)
