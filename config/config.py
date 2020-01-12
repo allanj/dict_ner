@@ -91,6 +91,7 @@ class Config:
         self.extraction = args.extraction if "extraction" in args.__dict__ else 0
         self.target_type = args.target_type if "target_type" in args.__dict__ else None
         self.dict_ratio = args.dict_ratio if "dict_ratio" in args.__dict__ else 1.0
+        self.inst_ratio = args.inst_ratio if "inst_ratio" in args.__dict__ else 1.0
 
     def read_pretrain_embedding(self) -> Tuple[Union[Dict[str, np.array], None], int]:
         """

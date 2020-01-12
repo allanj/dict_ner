@@ -5,6 +5,7 @@ from collections import defaultdict
 from config.eval import Span
 from config.reader import Reader
 from config.utils import use_iobes
+import random
 
 def get_spans(output, type:str):
     """
@@ -24,7 +25,7 @@ def get_spans(output, type:str):
             output_spans.add(Span(i, i, output[i][2:]))
     return output_spans
 
-def extract_dictionary(insts: List[Instance], target_type:str, ratio:float = 0.2)-> Tuple[List[Instance], List[Instance], List[str]]:
+def extract_dictionary(insts: List[Instance], target_type:str, ratio:float = 0.2, ratio_for_new_type_data: float= 0.0)-> Tuple[List[Instance], List[Instance], List[str]]:
     """
     Remove the instances with new entity type
     Return the pruned instances
@@ -45,13 +46,25 @@ def extract_dictionary(insts: List[Instance], target_type:str, ratio:float = 0.2
             if target_type in label:
                 has_new_type = True
 
-        spans = get_spans(output=output, type=target_type)
-        for span in spans:
-            ent2count[' '.join(words[span.left:span.right+1])] += 1
+        # spans = get_spans(output=output, type=target_type)
+        # for span in spans:
+        #     ent2count[' '.join(words[span.left:span.right+1])] += 1
         if not has_new_type:
             results.append(inst)
         else:
             unlabels.append(inst)
+    random.shuffle(unlabels)
+    num_new_type_insts = int(len(unlabels) * ratio_for_new_type_data)
+    results = results + unlabels[:num_new_type_insts]
+    unlabels = unlabels[num_new_type_insts:]
+
+    for inst in unlabels:
+        output = inst.output
+        spans = get_spans(output=output, type=target_type)
+        words = inst.input.words
+        for span in spans:
+            ent2count[' '.join(words[span.left:span.right+1])] += 1
+
     print(f"number of remaining instances: {len(results)}")
     print(f"number of unique total entities: {len(ent2count)}")
     dictionary = sorted(ent2count.items(), key=lambda x: x[1], reverse=True)[:int(len(ent2count)*ratio)]

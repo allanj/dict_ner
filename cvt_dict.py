@@ -59,6 +59,7 @@ def parse_arguments(parser):
     parser.add_argument('--extraction', type=int, default=0, choices=[0,1], help="whether the mode for extracting entities for dictionary")
     parser.add_argument('--target_type', type=str, default="ORG", help="target entity type which is the new entity type")
     parser.add_argument('--dict_ratio', type=float, default=0.0, help="The ratio of extracting dictionary from the training data")
+    parser.add_argument('--inst_ratio', type=float, default=0.2, help="The ratio of extracting dictionary from the training data")
 
     args = parser.parse_args()
     for k in args.__dict__:
@@ -220,7 +221,7 @@ def main():
     conf.use_iobes(trains + devs + tests)
     unlabeled_insts = []
     if conf.extraction:
-        labeled_insts, unlabeled_insts, ent_dict = extract_dictionary(trains, target_type=conf.target_type, ratio=conf.dict_ratio)
+        labeled_insts, unlabeled_insts, ent_dict = extract_dictionary(trains, target_type=conf.target_type, ratio=conf.dict_ratio, ratio_for_new_type_data=conf.inst_ratio)
         dict_insts = convert_dictionary_into_instances(ent_dict, conf.target_type)
         conf.use_iobes(dict_insts)
         trains = labeled_insts + dict_insts
