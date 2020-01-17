@@ -61,6 +61,8 @@ def parse_arguments(parser):
     parser.add_argument('--dict_ratio', type=float, default=0.0, help="The ratio of extracting dictionary from the training data")
     parser.add_argument('--inst_ratio', type=float, default=0.2, help="The ratio of extracting dictionary from the training data")
 
+    parser.add_argument('--use_unlabeled_insts', type=int, default=0, help="use the unlabeled instances")
+
     args = parser.parse_args()
     for k in args.__dict__:
         print(k + ": " + str(args.__dict__[k]))
@@ -107,7 +109,7 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
             optimizer = lr_decay(config, optimizer, i)
 
         labeled_data_batch_idxs = np.random.permutation(len(batched_data))
-        unlabeled_data_batch_idxs = np.random.permutation(len(batched_unlabeled)) if unlabeled_insts else []
+        unlabeled_data_batch_idxs = np.random.permutation(len(batched_unlabeled)) if config.use_unlabeled_insts and  unlabeled_insts else []
         final_idxs = []
         k = 0
         j = 0
