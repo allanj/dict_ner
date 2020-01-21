@@ -59,7 +59,7 @@ def parse_arguments(parser):
     parser.add_argument('--extraction', type=int, default=0, choices=[0,1], help="whether the mode for extracting entities for dictionary")
     parser.add_argument('--target_type', type=str, default="ORG", help="target entity type which is the new entity type")
     parser.add_argument('--dict_ratio', type=float, default=0.0, help="The ratio of extracting dictionary from the training data")
-    parser.add_argument('--inst_ratio', type=float, default=0.2, help="The ratio of extracting dictionary from the training data")
+    parser.add_argument('--inst_ratio', type=float, default=0.0, help="The ratio of extracting dictionary from the training data")
 
     parser.add_argument('--use_unlabeled_insts', type=int, default=0, help="use the unlabeled instances")
 
@@ -162,10 +162,10 @@ def train_model(config: Config, epoch: int, train_insts: List[Instance], dev_ins
             write_results(res_name, test_insts)
         model.zero_grad()
 
-    # print("Archiving the best Model...")
-    # with tarfile.open(f"model_files/{model_folder}/{model_folder}.tar.gz", "w:gz") as tar:
-    #     tar.add(model_folder, arcname=os.path.basename(model_folder))
-    # print("Finished archiving the models")
+    print("Archiving the best Model...")
+    with tarfile.open(f"model_files/{model_folder}/{model_folder}.tar.gz", "w:gz") as tar:
+        tar.add(f"model_files/{model_folder}", arcname=os.path.basename(f"model_files/{model_folder}"))
+    print("Finished archiving the models")
 
     print("The best dev: %.2f" % (best_dev[0]))
     print("The corresponding test: %.2f" % (best_test[0]))
